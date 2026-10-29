@@ -1,4 +1,4 @@
-name: Build & Push Docker image
+name: Build & Push Docker Image
 
 on:
   workflow_dispatch:
@@ -9,9 +9,9 @@ on:
         default: 'latest'
         type: string
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -34,9 +34,11 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Prepare platform name
+      - name: Prepare platform identifier
+        id: platform
         run: |
-          echo "PLATFORM_NAME=${{ matrix.platform }}" | sed 's|/|-|g' >> $GITHUB_ENV
+          PLATFORM_ID=$(echo "${{ matrix.platform }}" | sed 's|/|-|g')
+          echo "id=${PLATFORM_ID}" >> $GITHUB_OUTPUT
 
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -55,25 +57,35 @@ jobs:
         id: lowercase
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
+      - name: Extract version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Detected version: v${VERSION}"
+
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v4
 
         with:
-          images: ghcr.io/moontechlab/lunatv
+          images: ghcr.io/${{ steps.lowercase.outputs.owner }}/moontv
           tags: |
             type=raw,value=${{ github.event.inputs.tag || 'latest' }},enable={{is_default_branch}}
+            type=raw,value=${{ steps.version.outputs.version }},enable={{is_default_branch}}
 
       - name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v4
         with:
           context: .
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          tags: ghcr.io/moontechlab/lunatv:${{ github.event.inputs.tag || 'latest' }}
-          outputs: type=image,name=ghcr.io/moontechlab/lunatv,name-canonical=true,push=true
+          tags: |
+            ghcr.io/${{ steps.lowercase.outputs.owner }}/moontv:${{ github.event.inputs.tag || 'latest' }}
+            ghcr.io/${{ steps.lowercase.outputs.owner }}/moontv:${{ steps.version.outputs.version }}
+          outputs: type=image,name=ghcr.io/${{ steps.lowercase.outputs.owner }}/moontv,name-canonical=true,push=true
 
       - name: Export digest
         run: |
@@ -84,7 +96,7 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ env.PLATFORM_NAME }}
+          name: digests-${{ steps.platform.outputs.id }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -115,11 +127,27 @@ jobs:
         id: lowercase
         run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
+      - name: Download package.json
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            package.json
+          sparse-checkout-cone-mode: false
+
+      - name: Extract version from package.json
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Detected version: v${VERSION}"
+
       - name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
-          docker buildx imagetools create -t ghcr.io/moontechlab/lunatv:${{ github.event.inputs.tag || 'latest' }} \
-            $(printf 'ghcr.io/moontechlab/lunatv@sha256:%s ' *)
+          docker buildx imagetools create -t ghcr.io/${{ steps.lowercase.outputs.owner }}/moontv:${{ github.event.inputs.tag || 'latest' }} \
+            $(printf 'ghcr.io/${{ steps.lowercase.outputs.owner }}/moontv@sha256:%s ' *)
+          docker buildx imagetools create -t ghcr.io/${{ steps.lowercase.outputs.owner }}/moontv:${{ steps.version.outputs.version }} \
+            $(printf 'ghcr.io/${{ steps.lowercase.outputs.owner }}/moontv@sha256:%s ' *)
 
   cleanup-refresh:
     runs-on: ubuntu-latest
