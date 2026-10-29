@@ -25,6 +25,11 @@ COPY . .
 # 在构建阶段也显式设置 DOCKER_ENV，
 ENV DOCKER_ENV=true
 
+# 文件存储版：NEXT_PUBLIC_* 变量在构建时内联进产物，运行时改环境变量
+# 改不了存储类型，所以构建期就定为 file；数据文件路径仍可在运行时
+# 用 FILE_DB_PATH 覆盖（默认 /app/data/moontv-data.json）。
+ENV NEXT_PUBLIC_STORAGE_TYPE=file
+
 # 生成生产构建
 RUN pnpm run build
 
@@ -39,6 +44,20 @@ ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 ENV DOCKER_ENV=true
+ENV NEXT_PUBLIC_STORAGE_TYPE=file
+
+# 文件存储的数据目录：必须用卷保存，否则容器删除重建后数据会丢。
+# 本版不以 root 运行（用户已明确不要 root 版）：仍用 nextjs 用户，
+# 权限问题改由命名卷解决——Docker 创建命名卷时会按镜像里
+# /app/data 的属主（nextjs）初始化卷，容器里的 nextjs 就能写，
+# 不再依赖宿主机目录是谁建的；不要再用宿主机目录绑定映射，
+# 绑定映射的属主以宿主机为准，root 建的目录仍会 EACCES。
+RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+
+# 声明卷：创建容器时若没显式指定 -v，Docker 会自动为
+# /app/data 创建一个匿名卷并绑定；显式指定 -v moontv-data:/app/data
+# 时则用那个命名卷（推荐，名字固定、升级时 dockerman 会带过去）。
+VOLUME /app/data
 
 # 从构建器中复制 standalone 输出
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
@@ -50,7 +69,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/start.js ./start.js
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# 切换到非特权用户
+# 仍以非特权用户运行（root 版已作废，不要用）。
 USER nextjs
 
 EXPOSE 3000

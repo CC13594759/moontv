@@ -4634,21 +4634,6 @@ function AdminPageClient() {
             </CollapsibleTab>
           )}
 
-          {/* 站点配置标签 */}
-          <CollapsibleTab
-            title='站点配置'
-            icon={
-              <Settings
-                size={20}
-                className='text-gray-600 dark:text-gray-400'
-              />
-            }
-            isExpanded={expandedTabs.siteConfig}
-            onToggle={() => toggleTab('siteConfig')}
-          >
-            <SiteConfigComponent config={config} refreshConfig={fetchConfig} />
-          </CollapsibleTab>
-
           <div className='space-y-4'>
             {/* 用户配置标签 */}
             <CollapsibleTab
@@ -4689,22 +4674,7 @@ function AdminPageClient() {
             >
               <LiveSourceConfig config={config} refreshConfig={fetchConfig} />
             </CollapsibleTab>
-
-            {/* 分类配置标签 */}
-            <CollapsibleTab
-              title='分类配置'
-              icon={
-                <FolderOpen
-                  size={20}
-                  className='text-gray-600 dark:text-gray-400'
-                />
-              }
-              isExpanded={expandedTabs.categoryConfig}
-              onToggle={() => toggleTab('categoryConfig')}
-            >
-              <CategoryConfig config={config} refreshConfig={fetchConfig} />
-            </CollapsibleTab>
-
+            
             {/* 数据迁移标签 - 仅站长可见 */}
             {role === 'owner' && (
               <CollapsibleTab

@@ -65,6 +65,14 @@ const nextConfig = {
       crypto: false,
     };
 
+    // Node16 模块解析下动态 import 须写 .js 后缀（./redis.db.js），
+    // webpack 默认不会把 .js 映射回 .ts，此处显式映射，否则构建报
+    // Module not found: Can't resolve './xxx.db.js'。
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      '.js': ['.js', '.ts', '.tsx'],
+    };
+
     return config;
   },
 };
