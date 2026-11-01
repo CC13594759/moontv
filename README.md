@@ -54,7 +54,7 @@ docker run -d \
 -e USERNAME=admin \
 -e PASSWORD=password \
 -e TZ=Asia/Shanghai \
---log-opt max-size=30m \
+--log-opt max-size=1m \
 --restart unless-stopped \
 ghcr.io/cc13594759/moontv
 

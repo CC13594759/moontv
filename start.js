@@ -47,7 +47,7 @@ const intervalId = setInterval(() => {
       // 然后设置每小时执行一次 cron 任务
       setInterval(() => {
         executeCronJob();
-      }, 60 * 60 * 1000); // 每小时执行一次
+      }, 12 * 60 * 60 * 1000); // 每12小时执行一次
     }
   });
 
