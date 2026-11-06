@@ -30,12 +30,18 @@ require('./server.js');
 const TARGET_URL = `http://${process.env.HOSTNAME || 'localhost'}:${process.env.PORT || 3000
   }/login`;
 
+// 防重入：轮询每秒发一次、请求 2 秒才超时，两个在途请求可能先后都拿到 2xx，
+// 没这个标志就会各建一套定时器，之后每次 cron 都成对跑两次。
+let cronScheduled = false;
+
 const intervalId = setInterval(() => {
   console.log(`Fetching ${TARGET_URL} ...`);
 
   const req = http.get(TARGET_URL, (res) => {
     // 当返回 2xx 状态码时认为成功，然后停止轮询
     if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+      if (cronScheduled) return;
+      cronScheduled = true;
       console.log('Server is up, stop polling.');
       clearInterval(intervalId);
 
@@ -44,7 +50,7 @@ const intervalId = setInterval(() => {
         executeCronJob();
       }, 3000);
 
-      // 然后设置每小时执行一次 cron 任务
+      // 然后设置每 12 小时执行一次 cron 任务
       setInterval(() => {
         executeCronJob();
       }, 12 * 60 * 60 * 1000); // 每12小时执行一次
