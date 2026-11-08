@@ -26,10 +26,17 @@ export async function GET(request: Request) {
 
   try {
     const decodedUrl = decodeURIComponent(url);
+    // 透传客户端的 Range 请求（点播拖进度条时只取需要的字节段）；
+    // 上游不支持 Range 时回 200 全量，原样返回即可。
+    const range = request.headers.get('range');
+    const fetchHeaders: Record<string, string> = {
+      'User-Agent': ua,
+    };
+    if (range) {
+      fetchHeaders['Range'] = range;
+    }
     response = await fetch(decodedUrl, {
-      headers: {
-        'User-Agent': ua,
-      },
+      headers: fetchHeaders,
     });
     if (!response.ok) {
       return NextResponse.json({ error: 'Failed to fetch segment' }, { status: 500 });
@@ -45,6 +52,11 @@ export async function GET(request: Request) {
     const contentLength = response.headers.get('content-length');
     if (contentLength) {
       headers.set('Content-Length', contentLength);
+    }
+    // 上游回 206 时把 Content-Range 透传，并以 206 返回
+    const contentRange = response.headers.get('content-range');
+    if (contentRange) {
+      headers.set('Content-Range', contentRange);
     }
 
     // 使用流式传输，避免占用内存
@@ -118,7 +130,7 @@ export async function GET(request: Request) {
       }
     });
 
-    return new Response(stream, { headers });
+    return new Response(stream, { headers, status: response.status });
   } catch (error) {
     // 确保在错误情况下也释放资源
     if (reader) {
