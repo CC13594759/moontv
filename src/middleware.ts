@@ -60,24 +60,34 @@ export async function middleware(request: NextRequest) {
 }
 
 // 验证签名
+// 缓存导入后的 HMAC 密钥：middleware 对每个请求都跑，播放时每几秒就有一个
+// .ts 切片 / m3u8 请求走这里，每次都 importKey 是白白的开销。
+// 密钥只取决于 PASSWORD（运行时不变），导入一次复用即可。
+let cachedKey: CryptoKey | null = null;
+let cachedSecret = '';
+
 async function verifySignature(
   data: string,
   signature: string,
   secret: string
 ): Promise<boolean> {
   const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
   const messageData = encoder.encode(data);
 
   try {
-    // 导入密钥
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify']
-    );
+    // 密钥没变就复用缓存的，已变（改密码重启后模块会重载，这里是兜底）才重新导入
+    if (!cachedKey || cachedSecret !== secret) {
+      const keyData = encoder.encode(secret);
+      cachedKey = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['verify']
+      );
+      cachedSecret = secret;
+    }
+    const key = cachedKey;
 
     // 将十六进制字符串转换为Uint8Array
     const signatureBuffer = new Uint8Array(
